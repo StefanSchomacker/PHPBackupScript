@@ -1,14 +1,20 @@
 <?php
 
-$backupDir = $_SERVER['DOCUMENT_ROOT'] . "/backup/";
+/*
+$serverRoot = "/var/www/html/";
+$backupDir = $serverRoot . "backup/";
 
-$backup = new backup($backupDir);
-$backup->setMail("backup@example.com");
+$backup = new backup($serverRoot, $backupDir);
+$backup->setMail("[YOUR EMAIL]");
+$backup->setCreateLog(true);
+$backup->setDeleteBackupsAfter(20);
 
 $backup->execute();
+*/
 
 class backup
 {
+    private $_serverRoot; //$_SERVER['DOCUMENT_ROOT'] cant be used with cron
     private $_backupDir;
     private $_recDirIt;
     private $_recItIt;
@@ -20,24 +26,46 @@ class backup
     //default values
     private $_mail = null;
     private $_createLog = true;
+    private $_deleteBackupsAfter = 30; //delete old backups after X Days || -1 deactivate
 
-
-    public function __construct($backupDir)
+    /**
+     * Backup constructor.
+     * @param $serverRoot
+     * @param $backupDir
+     */
+    public function __construct($serverRoot, $backupDir)
     {
+        $this->_serverRoot = $serverRoot;
         $this->_backupDir = $backupDir;
-        $this->_recDirIt = new RecursiveDirectoryIterator($_SERVER['DOCUMENT_ROOT'], RecursiveDirectoryIterator::SKIP_DOTS);
+        $this->_recDirIt = new RecursiveDirectoryIterator($this->_serverRoot, RecursiveDirectoryIterator::SKIP_DOTS);
         $this->_recItIt = new RecursiveIteratorIterator($this->_recDirIt);
     }
 
+    /**
+     * Starts the backup
+     * @return bool true if backup was successful,
+     * false otherwise
+     */
     public function execute()
     {
-        $success = true;
+        $success = false;
 
         //10 minutes
-        ini_set('max_execution_time', 600);
+        ini_set("max_execution_time", 600);
 
         if ($this->_createLog) {
-            $this->createNewLogEntry("start");
+            $this->createNewLogEntry("notice", "Backup started");
+        }
+
+        if ($this->_deleteBackupsAfter != -1) {
+
+            $deletedFiles = $this->deleteOldBackup();
+
+            if (!empty($deletedFiles) && $this->_createLog) {
+                $this->createNewLogEntry("notice", "Old backup deleted: " . implode(", ", $deletedFiles));
+            } elseif ($this->_createLog) {
+                $this->createNewLogEntry("notice", "No old backup deleted");
+            }
         }
 
         $zipPath = $this->backup($this->_recItIt);
@@ -59,13 +87,18 @@ class backup
         }
 
         if ($this->_createLog) {
-            $this->createNewLogEntry("end");
+            $this->createNewLogEntry("notice", "Backup finished successfully");
         }
-
 
         return $success;
     }
 
+    /**
+     * Creates zip archive of the given path
+     * @param RecursiveIteratorIterator $recItIt path of root dir
+     * @return string path of the created backup,
+     * null if backup failed
+     */
     private function backup($recItIt)
     {
         $zip = new ZipArchive();
@@ -75,7 +108,6 @@ class backup
         }
 
         foreach ($recItIt as $singleItem) {
-
 
             //exclude backup folder
             if (is_int(strpos($singleItem, $this->_backupDir))) {
@@ -105,15 +137,20 @@ class backup
         return null;
     }
 
+    /**
+     * Sends a mail with attachment (backup zip)
+     * @param $attachmentPath
+     * @return bool true if mail was sent successfully,
+     * false otherwise
+     */
     private function sendMail($attachmentPath)
     {
-        $from = "backup@" . $_SERVER['SERVER_NAME'];
-        $subject = 'Backup ' . $_SERVER['HTTP_HOST'] . ' || ' . basename($attachmentPath);
+        $subject = "Backup || " . basename($attachmentPath);
 
         $content = chunk_split(base64_encode(file_get_contents($attachmentPath)));
         $part = md5(time());
 
-        $header = "From: " . $from . "\r\n";
+        $header = "From: " . $this->_mail . "\r\n";
         $header .= "MIME-Version: 1.0\r\n";
         $header .= "Content-Type: multipart/mixed; boundary=\"" . $part . "\"\r\n\r\n";
 
@@ -131,8 +168,19 @@ class backup
         return mail($this->_mail, $subject, $message, $header);
     }
 
-    private function createNewLogEntry($type, $message = null)
+    /**
+     * Creates new log entry
+     * $type = {NOTICE, ERROR}
+     * @param $type
+     * @param $message
+     */
+    private function createNewLogEntry($type, $message)
     {
+        //folder structure
+        //2017
+        //--backup-january.log
+        //--backup-february.log
+        //  ...
 
         $currentYear = date("Y");
         $currentMonth = date("F");
@@ -154,28 +202,18 @@ class backup
         $path = $path . "backup-" . strtolower($currentMonth) . ".log";
 
         $logType = "UNDEFINED";
-        $logMessage = "...";
 
         switch ($type) {
-            case "start":
+            case "notice":
                 $logType = "NOTICE";
-                $logMessage = "Backup started";
-                break;
-            case "end":
-                $logType = "NOTICE";
-                $logMessage = "Backup finished successfully";
                 break;
             case "error":
                 $logType = "ERROR";
-                if (!is_null($message)) {
-                    $logMessage = $message . "...Script aborted";
-                } else {
-                    $logMessage = "An error has occurred";
-                }
+                $message .= "...Script aborted";
                 break;
         }
 
-        $entry = sprintf("%s %s %s %s\r\n", date("Y-m-d H:i:s"), "-- PHPBackupScript -", $logType, $logMessage);
+        $entry = sprintf("%s %s %s %s" . PHP_EOL, date("Y-m-d H:i:s"), "-- PHPBackupScript -", $logType, $message);
         file_put_contents($path, $entry, FILE_APPEND);
 
         if ($type == "error") {
@@ -184,11 +222,49 @@ class backup
 
     }
 
+    /**
+     * Deletes zip archives older than $this->_deleteBackupsAfter days
+     * log folder is excluded
+     * @return array of the deleted filename
+     */
+    private function deleteOldBackup()
+    {
+        $deletedFiles = array();
+
+        $recDirIt = new RecursiveDirectoryIterator($this->_backupDir, RecursiveDirectoryIterator::SKIP_DOTS);
+        $recItIt = new RecursiveIteratorIterator($recDirIt);
+
+        foreach ($recItIt as $file) {
+
+            //exclude log folder
+            if (is_int(strpos($file, $this->_backupDir . "log/"))) {
+                continue;
+            }
+
+            if (is_file($file)) {
+                $dateFileCreated = date_create();
+                $dateToday = date_create();
+                date_timestamp_set($dateFileCreated, filectime($file));
+
+                if (pathinfo($file)["extension"] == "zip" &&
+                    date_diff($dateFileCreated, $dateToday)->d >= $this->_deleteBackupsAfter
+                ) {
+                    if (unlink($file)) {
+                        array_push($deletedFiles, basename($file));
+                    }
+                }
+            }
+        }
+
+        return $deletedFiles;
+    }
+
 
     //getter and setter
 
     /**
-     * @return null|string
+     * @return string of email,
+     * null if unset
      */
     public function getMail()
     {
@@ -196,7 +272,9 @@ class backup
     }
 
     /**
-     * @param null|string $email
+     * Backup zip archive will be sent to this email
+     * @param string $email ,
+     * null if unset
      */
     public function setMail($email)
     {
@@ -217,6 +295,22 @@ class backup
     public function setCreateLog($createLog)
     {
         $this->_createLog = $createLog;
+    }
+
+    /**
+     * @return int in days
+     */
+    public function getDeleteBackupsAfter()
+    {
+        return $this->_deleteBackupsAfter;
+    }
+
+    /**
+     * @param int $deleteBackupsAfter in days
+     */
+    public function setDeleteBackupsAfter($deleteBackupsAfter)
+    {
+        $this->_deleteBackupsAfter = $deleteBackupsAfter;
     }
 
 }
