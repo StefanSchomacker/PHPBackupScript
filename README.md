@@ -5,7 +5,8 @@
 * Select own folder for zip backups
 * Except backup folder
 * Send E-Mail with zip archive
-* Log available
+* Log-file
+* Weekly Report E-Mail
 * Delete old backups after X days
 
 
@@ -49,7 +50,6 @@ $backup->setMail("[YOUR EMAIL]");
 Configure some Settings
 
 ```
-$backup->setCreateLog(true);
 $backup->setDeleteBackupsAfter(20); //deletes zip archives older than 20 days
 ```
 
@@ -75,8 +75,9 @@ The example creates a backup every day at 1am:
 variable | default value | description
 ------------ | ------------- | -------------
 $_mail | null | zip will be send to this mail. `null` disabled
-$_createLog | true | log files will be created in backup folder
 $_deleteBackupsAfter | 30 | old zip backup will be deleted. `-1` disabled
+$_weeklyReport | false | send report mail
+$_phpTimeoutTime | 600 | max_execution_time in seconds - to avoid php timeouts
 
 ## Details
 **Timeout**
@@ -84,10 +85,10 @@ $_deleteBackupsAfter | 30 | old zip backup will be deleted. `-1` disabled
 A PHP script will be canceled after 30 seconds by the server.
 The backup could take more time.
 To avoid the timeout, I set the `max_execution_time` to 10 minutes. 
-If you need more time, feel free to change the time manually.
+If you need more time, feel free to change the time (in seconds).
+
 ```
-//10 minutes
-ini_set("max_execution_time", 600);
+$backup->setPhpTimeoutTime(X);
 ```
 
 **Backup folder**
@@ -129,19 +130,27 @@ Feel free to create a new
 
 ## Changelog
 
-##### v1.0
+##### v1.1.0
+* added weekly report mail
+* log is now activated by default
+* log entry style changed
+* set max_execution_time to avoid php timeouts
+* changed date to DateTime
+
+##### v1.0.0
 * zip archive of all files
 * except backup folder
 * send Mail with backup
 * create log files
 * delete old backups
 
-### IDEAS and TODO for v1.1
+### IDEAS and TODO
 - [ ] MySQL database backup
 - [ ] user decide between backup files and db
 - [ ] separate mail of different backups
 - [ ] validate user input
-- [ ] weekly report mail
+- [x] weekly report mail
+- [x] set max_execution_time by function
 - [ ] backup with runwhen
 
 ### License
