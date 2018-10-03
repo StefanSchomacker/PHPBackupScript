@@ -36,18 +36,18 @@ class Backup
 
     /**
      * Backup constructor.
-     * @param $backupDir
+     * @param string $backupPath
      */
-    public function __construct($backupDir)
+    public function __construct(string $backupPath)
     {
-        $this->_backupDir = $backupDir;
+        $this->_backupDir = $backupPath;
     }
 
     /**
      * Starts the file backup
-     * @param $directory
+     * @param string $directoryPath
      */
-    public function backupDirectory($directory)
+    public function backupDirectory(string $directoryPath) : void
     {
         //avoid php timeouts
         ini_set("max_execution_time", $this->_phpTimeoutTime);
@@ -69,7 +69,7 @@ class Backup
             }
         }
 
-        $zipPath = $this->createZipArchive($directory);
+        $zipPath = $this->createZipArchive($directoryPath);
 
         if ($zipPath === null) {
             $this->createNewLogEntry(self::LOG_ERROR, "Zip archive cannot be created");
@@ -88,19 +88,14 @@ class Backup
 
             $reportRequired = $this->isReportMailRequired($content);
 
-            if ($reportRequired == -1) {
+            if (!$reportRequired) {
                 //check if last E-Mail was in previous month
                 $currentDate->modify("-1 month");
                 $content = file($this->_backupDir . "log/" . $currentDate->format("Y") . "/"
                     . "backup-" . strtolower($currentDate->format("F")) . ".log");
-                $reportRequired = $this->isReportMailRequired($content);
-            }
-
-            if ($reportRequired) {
-
+            } else {
                 $this->sendReportMail();
                 $this->createNewLogEntry(self::LOG_INFO, "E-Mail Report send");
-
             }
 
         }
@@ -108,13 +103,13 @@ class Backup
 
     /**
      * Creates zip archive of the given path
-     * @param $directory
+     * @param string $directoryPath
      * @return string path of the created backup,
      * null if backup failed
      */
-    private function createZipArchive($directory)
+    private function createZipArchive(string $directoryPath) : string
     {
-        $recDirIt = new RecursiveDirectoryIterator($directory, RecursiveDirectoryIterator::SKIP_DOTS);
+        $recDirIt = new RecursiveDirectoryIterator($directoryPath, RecursiveDirectoryIterator::SKIP_DOTS);
         $recItIt = new RecursiveIteratorIterator($recDirIt);
 
         $zip = new ZipArchive();
@@ -138,7 +133,7 @@ class Backup
 
             } elseif (is_file($singleItem)) {
 
-                $zip->addFile($singleItem, str_replace($directory, '', $singleItem));
+                $zip->addFile($singleItem, str_replace($directoryPath, '', $singleItem));
 
             }
         }
@@ -152,12 +147,12 @@ class Backup
 
     /**
      * Starts the database backup
-     * @param $databaseHost
-     * @param $databaseUser
-     * @param $databasePassword
-     * @param $databaseName
+     * @param string $databaseHost
+     * @param string $databaseUser
+     * @param string $databasePassword
+     * @param string $databaseName
      */
-    public function backupDatabase($databaseHost, $databaseUser, $databasePassword, $databaseName)
+    public function backupDatabase(string $databaseHost, string $databaseUser, string $databasePassword, string $databaseName) : void
     {
         $this->createNewLogEntry(self::LOG_INFO, "Backup database started");
 
@@ -175,9 +170,9 @@ class Backup
 
     /**
      * Sends a mail with attachment (backup zip)
-     * @param $attachmentPath
+     * @param string $attachmentPath
      */
-    private function sendBackupMail($attachmentPath)
+    private function sendBackupMail(string $attachmentPath) : void
     {
         if($this->_mail === null){
             return;
@@ -211,10 +206,10 @@ class Backup
 
     /**
      * Creates new log entry
-     * @param $type
-     * @param $message
+     * @param int $type
+     * @param string $message
      */
-    private function createNewLogEntry($type, $message)
+    private function createNewLogEntry(int $type, string $message) : void
     {
         //folder structure
         //2017
@@ -269,7 +264,7 @@ class Backup
      * log folder is excluded
      * @return array of the deleted filename
      */
-    private function deleteOldBackup()
+    private function deleteOldBackup() : array
     {
         $deletedFiles = array();
 
@@ -306,9 +301,8 @@ class Backup
      * @param array $fileContent
      * @return bool true if Report Mail is required,
      * false otherwise
-     * int -1 if not found
      */
-    private function isReportMailRequired($fileContent)
+    private function isReportMailRequired(array $fileContent) : bool
     {
         foreach (array_reverse($fileContent) as $entry) {
 
@@ -323,7 +317,7 @@ class Backup
             }
 
         }
-        return -1;
+        return false;
     }
 
 
@@ -335,10 +329,10 @@ class Backup
      *      - Deleted backups
      * No changes = No Email
      */
-    private function sendReportMail()
+    private function sendReportMail() : void
     {
         $generatedReport = $this->generateReportContent();
-        if ($generatedReport != false) {
+        if ($generatedReport !== null) {
 
             $currentDate = new DateTime("now");
 
@@ -358,10 +352,9 @@ class Backup
     /**
      * Creates HTML formatted string for sendReportMail().
      * Validate Log files of current week
-     * @return string contains HTML formatted report,
-     * false on failure
+     * @return string contains HTML formatted report
      */
-    private function generateReportContent()
+    private function generateReportContent() : string
     {
         $errorLogEntries = array();
         $createLogEntries = array();
@@ -412,7 +405,7 @@ class Backup
             $msg .= $this->splitInUL($deleteLogEntries);
         }
 
-        return ($msg != "") ? $msg : false;
+        return ($msg != "") ? $msg : null;
 
     }
 
@@ -420,7 +413,7 @@ class Backup
      * Generates string array with all paths of the current week
      * @return array
      */
-    private function getLastWeekPath()
+    private function getLastWeekPath() : array
     {
         $currentDate = new DateTime("now");
         $previousDate = new DateTime("now");
@@ -455,10 +448,10 @@ class Backup
 
     /**
      * Puts all items of the array in an unordered list (HTML)
-     * @param $array
+     * @param array $array
      * @return string
      */
-    private function splitInUL($array)
+    private function splitInUL(array $array) : string
     {
         $msg = "<ul>";
         foreach ($array as $entry) {
@@ -475,7 +468,7 @@ class Backup
      * @return string of email,
      * null if unset
      */
-    public function getMail()
+    public function getMail() : string
     {
         return $this->_mail;
     }
@@ -485,7 +478,7 @@ class Backup
      * @param string $email ,
      * null if unset
      */
-    public function setMail($email)
+    public function setMail(string $email)
     {
         $this->_mail = $email;
     }
@@ -493,7 +486,7 @@ class Backup
     /**
      * @return int in days
      */
-    public function getDeleteBackupsAfter()
+    public function getDeleteBackupsAfter() : int
     {
         return $this->_deleteBackupsAfter;
     }
@@ -501,7 +494,7 @@ class Backup
     /**
      * @param int $deleteBackupsAfter in days
      */
-    public function setDeleteBackupsAfter($deleteBackupsAfter)
+    public function setDeleteBackupsAfter(int $deleteBackupsAfter) : void
     {
         $this->_deleteBackupsAfter = $deleteBackupsAfter;
     }
@@ -509,7 +502,7 @@ class Backup
     /**
      * @return boolean
      */
-    public function getWeeklyReport()
+    public function getWeeklyReport() : bool
     {
         return $this->_weeklyReport;
     }
@@ -517,7 +510,7 @@ class Backup
     /**
      * @param boolean $weeklyReport
      */
-    public function setWeeklyReport($weeklyReport)
+    public function setWeeklyReport(bool $weeklyReport) : void
     {
         $this->_weeklyReport = $weeklyReport;
     }
@@ -525,7 +518,7 @@ class Backup
     /**
      * @return int
      */
-    public function getPhpTimeoutTime()
+    public function getPhpTimeoutTime() : int
     {
         return $this->_phpTimeoutTime;
     }
@@ -533,7 +526,7 @@ class Backup
     /**
      * @param int $phpTimeoutTime
      */
-    public function setPhpTimeoutTime($phpTimeoutTime)
+    public function setPhpTimeoutTime(int $phpTimeoutTime) : void
     {
         $this->_phpTimeoutTime = $phpTimeoutTime;
     }
