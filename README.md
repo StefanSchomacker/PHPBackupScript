@@ -6,13 +6,12 @@
 * Except backup directory
 * Send E-Mail with zip archive
 * Log-file
-* Weekly Report E-Mail
 * Delete old backups after X days
 * MySQL database backup
 
 
 ## Installation
-It's very simple to include this script to your project.
+It's very simple to include this script.
 
 **Download Zip**
 
@@ -83,7 +82,6 @@ variable | default value | description
 ------------ | ------------- | -------------
 $_mail | null | zip will be send to this mail. `null` disabled
 $_deleteBackupsAfter | 30 | old zip backup will be deleted. `-1` disabled
-$_weeklyReport | false | send report mail
 $_phpTimeoutTime | 600 | max_execution_time in seconds - to avoid php timeouts
 
 ## Details
@@ -147,10 +145,9 @@ Feel free to create a new
 
 ### IDEAS and TODO
 - [x] MySQL database backup
-- [ ] user decide between backup files and db
-- [ ] separate mail of different backups
+- [x] user decide between backup files and db
+- [x] separate mail of different backups
 - [ ] validate user input
-- [x] weekly report mail
 - [x] set max_execution_time by function
 - [ ] backup with runwhen
 
