@@ -4,7 +4,7 @@
 $serverRoot = "/var/www/html/";
 $backupDir = $serverRoot . "backup/";
 
-$backup = new backup($serverRoot, $backupDir);
+$backup = new Backup($serverRoot, $backupDir);
 $backup->setMail("[YOUR EMAIL]");
 $backup->setDeleteBackupsAfter(20);
 $backup->setWeeklyReport(true);
@@ -12,7 +12,7 @@ $backup->setWeeklyReport(true);
 $backup->execute();
 */
 
-class backup
+class Backup
 {
     private $_serverRoot; //$_SERVER['DOCUMENT_ROOT'] cant be used with cron
     private $_backupDir;
@@ -67,7 +67,7 @@ class backup
             }
         }
 
-        $zipPath = $this->backup($this->_recItIt);
+        $zipPath = $this->createZipArchive($this->_recItIt);
 
         if (is_null($zipPath)) {
             $success = false;
@@ -118,7 +118,7 @@ class backup
      * @return string path of the created backup,
      * null if backup failed
      */
-    private function backup($recItIt)
+    private function createZipArchive($recItIt)
     {
         $zip = new ZipArchive();
         $zipPath = $this->_backupDir . "backup_" . (new DateTime("now"))->format("Y-m-d_H-i-s") . ".zip";
@@ -137,7 +137,7 @@ class backup
 
                 $zip->addEmptyDir($singleItem);
 
-                $this->backup($singleItem);
+                $this->createZipArchive($singleItem);
 
             } elseif (is_file($singleItem)) {
 
