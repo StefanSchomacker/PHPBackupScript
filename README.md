@@ -35,10 +35,10 @@ $serverRoot = "/var/www/html/";
 $backupDir = $serverRoot . "backup/";
 ```
 
-Create an object of backup class
+Create an object of Backup::class
 
 ```
-$backup = new backup($serverRoot, $backupDir);
+$backup = new Backup($serverRoot, $backupDir);
 ```
 
 Set E-Mail for zip Archive
