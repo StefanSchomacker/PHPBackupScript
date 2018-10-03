@@ -1,20 +1,25 @@
 <?php
 
 /*
-$serverRoot = "/var/www/html/";
-$backupDir = $serverRoot . "backup/";
+$backupDir = "/var/www/html/backup/";
 
-$backup = new Backup();
+$backup = new Backup($backupDir);
 $backup->setMail("[YOUR EMAIL]");
 $backup->setDeleteBackupsAfter(20);
 $backup->setWeeklyReport(true);
 
-$backup->backupFiles($serverRoot, $backupDir);
+$dirPath = "/var/www/html/";
+$backup->backupDirectory($dirPath);
+
+$databaseHost = "localhost";
+$databaseUser = "user";
+$databasePassword = "password";
+$databaseName = "databaseName";
+$backup->backupDatabase($databaseHost, $databaseUser, $databasePassword, $databaseName);
 */
 
 class Backup
 {
-    private $_serverRoot; //$_SERVER['DOCUMENT_ROOT'] cant be used with cron
     private $_backupDir;
 
     //default values
@@ -24,26 +29,24 @@ class Backup
     private $_phpTimeoutTime = 600; //default 10 minutes || max_execution_time
 
     /**
-     * Starts the file backup
-     * @param $serverRoot
+     * Backup constructor.
      * @param $backupDir
-     * @return bool true if backup was successful,
-     * false otherwise
      */
-    public function backupFiles($serverRoot, $backupDir)
+    public function __construct($backupDir)
     {
-        $this->_serverRoot = $serverRoot;
         $this->_backupDir = $backupDir;
-        $recDirIt = new RecursiveDirectoryIterator($this->_serverRoot, RecursiveDirectoryIterator::SKIP_DOTS);
-        $recItIt = new RecursiveIteratorIterator($recDirIt);
+    }
 
-
-        $success = false;
-
+    /**
+     * Starts the file backup
+     * @param $directory
+     */
+    public function backupDirectory($directory)
+    {
         //avoid php timeouts
         ini_set("max_execution_time", $this->_phpTimeoutTime);
 
-        $this->createNewLogEntry("info", "Backup started");
+        $this->createNewLogEntry("info", "Backup files started");
 
         if ($this->_deleteBackupsAfter != -1) {
 
@@ -60,20 +63,14 @@ class Backup
             }
         }
 
-        $zipPath = $this->createZipArchive($recItIt);
+        $zipPath = $this->createZipArchive($directory);
 
-        if (is_null($zipPath)) {
-            $success = false;
-            $this->createNewLogEntry("error", "Zip Archive cannot be created");
+        if ($zipPath === null) {
+            $this->createNewLogEntry("error", "Zip archive cannot be created");
+            return;
         }
 
-        if (!is_null($this->_mail)) {
-            $success = $this->sendBackupMail($zipPath);
-
-            if (!$success) {
-                $this->createNewLogEntry("error", "E-Mail cannot be sent");
-            }
-        }
+        $this->sendBackupMail($zipPath);
 
         $this->createNewLogEntry("create", basename($zipPath));
 
@@ -101,18 +98,19 @@ class Backup
             }
 
         }
-
-        return $success;
     }
 
     /**
      * Creates zip archive of the given path
-     * @param RecursiveIteratorIterator $recItIt path of root dir
+     * @param $directory
      * @return string path of the created backup,
      * null if backup failed
      */
-    private function createZipArchive($recItIt)
+    private function createZipArchive($directory)
     {
+        $recDirIt = new RecursiveDirectoryIterator($directory, RecursiveDirectoryIterator::SKIP_DOTS);
+        $recItIt = new RecursiveIteratorIterator($recDirIt);
+
         $zip = new ZipArchive();
         $zipPath = $this->_backupDir . "backup_" . (new DateTime("now"))->format("Y-m-d_H-i-s") . ".zip";
         if ($zip->open($zipPath, ZipArchive::CREATE) !== TRUE) {
@@ -134,7 +132,7 @@ class Backup
 
             } elseif (is_file($singleItem)) {
 
-                $zip->addFile($singleItem);
+                $zip->addFile($singleItem, str_replace($directory, '', $singleItem));
 
             }
         }
@@ -147,13 +145,38 @@ class Backup
     }
 
     /**
+     * Starts the database backup
+     * @param $databaseHost
+     * @param $databaseUser
+     * @param $databasePassword
+     * @param $databaseName
+     */
+    public function backupDatabase($databaseHost, $databaseUser, $databasePassword, $databaseName)
+    {
+        $this->createNewLogEntry("info", "Backup database started");
+
+        $dumpPath = $this->_backupDir . "sqldump_" . (new DateTime("now"))->format("Y-m-d_H-i-s") . ".sql.gz";
+        $output = [];
+        exec('mysqldump --host=' . $databaseHost . ' --user=' . $databaseUser .
+            ' --password=\'' . $databasePassword . '\' ' . $databaseName . ' | gzip > ' . $dumpPath, $output, $success);
+        if (!$success) {
+            $this->createNewLogEntry("create", basename($dumpPath));
+            $this->sendBackupMail($dumpPath);
+        } else {
+            $this->createNewLogEntry("error", "Database dump cannot be created");
+        }
+    }
+
+    /**
      * Sends a mail with attachment (backup zip)
      * @param $attachmentPath
-     * @return bool true if mail was sent successfully,
-     * false otherwise
      */
     private function sendBackupMail($attachmentPath)
     {
+        if($this->_mail === null){
+            return;
+        }
+
         $subject = "Backup || " . basename($attachmentPath);
 
         $content = chunk_split(base64_encode(file_get_contents($attachmentPath)));
@@ -174,7 +197,10 @@ class Backup
         $message .= $content . "\r\n\r\n";
         $message .= "--" . $part . "--";
 
-        return mail($this->_mail, $subject, $message, $header);
+        $success = mail($this->_mail, $subject, $message, $header);
+        if (!$success) {
+            $this->createNewLogEntry("error", "E-Mail cannot be sent");
+        }
     }
 
     /**
