@@ -128,6 +128,15 @@ Feel free to create a new
 
 ## Changelog
 
+##### v1.2.0
+* add mysql database backup functionality
+* rename class name and execution methods
+* separate backup output directory and actual backup directory
+* remove report mail
+* introduce logging types constants
+* add php7 variable type declaration
+* validate user input
+
 ##### v1.1.0
 * added weekly report mail
 * log is now activated by default
