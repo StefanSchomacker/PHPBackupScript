@@ -27,17 +27,16 @@ git clone https://github.com/StefanSchomacker/PHPBackupScript
 **Sample Setup**
 
 Create a string with the path of your backup directory.
-The last `/` is important!
 
 Example:
 ```
-$backupDir = "/var/www/html/backup/";
+$backupPath = "/var/www/html/backup/";
 ```
 
 Create an object of Backup::class
 
 ```
-$backup = new Backup($backupDir);
+$backup = new Backup($backupPath);
 ```
 
 Set E-Mail for zip Archive
@@ -147,7 +146,7 @@ Feel free to create a new
 - [x] MySQL database backup
 - [x] user decide between backup files and db
 - [x] separate mail of different backups
-- [ ] validate user input
+- [x] validate user input
 - [x] set max_execution_time by function
 - [ ] backup with runwhen
 

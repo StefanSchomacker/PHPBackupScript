@@ -1,9 +1,9 @@
 <?php
 
 /*
-$backupDir = "/var/www/html/backup/";
+$backupPath = "/var/www/html/backup/";
 
-$backup = new Backup($backupDir);
+$backup = new Backup($backupPath);
 $backup->setMail("[YOUR EMAIL]");
 $backup->setDeleteBackupsAfter(20);
 
@@ -38,7 +38,7 @@ class Backup
      */
     public function __construct(string $backupPath)
     {
-        $this->_backupDir = $backupPath;
+        $this->_backupDir = $this->validateUserInputFilePath($backupPath);
     }
 
     /**
@@ -47,6 +47,8 @@ class Backup
      */
     public function backupDirectory(string $directoryPath) : void
     {
+        $directoryPath = $this->validateUserInputFilePath($directoryPath);
+
         //avoid php timeouts
         ini_set("max_execution_time", $this->_phpTimeoutTime);
 
@@ -272,6 +274,20 @@ class Backup
         }
 
         return $deletedFiles;
+    }
+
+    /**
+     * Validates the given filePath
+     * @param string $filePath
+     * @return string
+     */
+    private function validateUserInputFilePath(string $filePath) : string
+    {
+        $result = $filePath;
+        if(substr($result, -1) !== DIRECTORY_SEPARATOR){
+            $result .= DIRECTORY_SEPARATOR;
+        }
+        return $result;
     }
 
     //getter and setter
