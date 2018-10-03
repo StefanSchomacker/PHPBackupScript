@@ -28,6 +28,12 @@ class Backup
     private $_weeklyReport = false; //send email report on sunday
     private $_phpTimeoutTime = 600; //default 10 minutes || max_execution_time
 
+    //logging types
+    const LOG_INFO = 0;
+    const LOG_DELETE = 1;
+    const LOG_CREATE = 2;
+    const LOG_ERROR = 3;
+
     /**
      * Backup constructor.
      * @param $backupDir
@@ -46,7 +52,7 @@ class Backup
         //avoid php timeouts
         ini_set("max_execution_time", $this->_phpTimeoutTime);
 
-        $this->createNewLogEntry("info", "Backup files started");
+        $this->createNewLogEntry(self::LOG_INFO, "Backup files started");
 
         if ($this->_deleteBackupsAfter != -1) {
 
@@ -55,24 +61,24 @@ class Backup
             if (!empty($deletedFiles)) {
 
                 foreach ($deletedFiles as $file) {
-                    $this->createNewLogEntry("delete", $file);
+                    $this->createNewLogEntry(self::LOG_DELETE, $file);
                 }
 
             } else {
-                $this->createNewLogEntry("info", "No old backup deleted");
+                $this->createNewLogEntry(self::LOG_INFO, "No old backup deleted");
             }
         }
 
         $zipPath = $this->createZipArchive($directory);
 
         if ($zipPath === null) {
-            $this->createNewLogEntry("error", "Zip archive cannot be created");
+            $this->createNewLogEntry(self::LOG_ERROR, "Zip archive cannot be created");
             return;
         }
 
         $this->sendBackupMail($zipPath);
 
-        $this->createNewLogEntry("create", basename($zipPath));
+        $this->createNewLogEntry(self::LOG_CREATE, basename($zipPath));
 
         if ($this->_weeklyReport) {
             //check date last E-Mail
@@ -93,7 +99,7 @@ class Backup
             if ($reportRequired) {
 
                 $this->sendReportMail();
-                $this->createNewLogEntry("info", "E-Mail Report send");
+                $this->createNewLogEntry(self::LOG_INFO, "E-Mail Report send");
 
             }
 
@@ -153,17 +159,17 @@ class Backup
      */
     public function backupDatabase($databaseHost, $databaseUser, $databasePassword, $databaseName)
     {
-        $this->createNewLogEntry("info", "Backup database started");
+        $this->createNewLogEntry(self::LOG_INFO, "Backup database started");
 
         $dumpPath = $this->_backupDir . "sqldump_" . (new DateTime("now"))->format("Y-m-d_H-i-s") . ".sql.gz";
         $output = [];
         exec('mysqldump --host=' . $databaseHost . ' --user=' . $databaseUser .
             ' --password=\'' . $databasePassword . '\' ' . $databaseName . ' | gzip > ' . $dumpPath, $output, $success);
         if (!$success) {
-            $this->createNewLogEntry("create", basename($dumpPath));
+            $this->createNewLogEntry(self::LOG_CREATE, basename($dumpPath));
             $this->sendBackupMail($dumpPath);
         } else {
-            $this->createNewLogEntry("error", "Database dump cannot be created");
+            $this->createNewLogEntry(self::LOG_ERROR, "Database dump cannot be created");
         }
     }
 
@@ -199,13 +205,12 @@ class Backup
 
         $success = mail($this->_mail, $subject, $message, $header);
         if (!$success) {
-            $this->createNewLogEntry("error", "E-Mail cannot be sent");
+            $this->createNewLogEntry(self::LOG_ERROR, "E-Mail cannot be sent");
         }
     }
 
     /**
      * Creates new log entry
-     * $type = {INFO, DELETE, CREATE, ERROR}
      * @param $type
      * @param $message
      */
@@ -234,19 +239,17 @@ class Backup
         //log file
         $path .= "backup-" . strtolower($currentDate->format("F")) . ".log";
 
-        $logType = "UNDEFINED";
-
         switch ($type) {
-            case "info":
+            case self::LOG_INFO:
                 $logType = "INFO:";
                 break;
-            case "delete":
+            case self::LOG_DELETE:
                 $logType = "DELETE:";
                 break;
-            case "create":
+            case self::LOG_CREATE:
                 $logType = "CREATE:";
                 break;
-            case "error":
+            case self::LOG_ERROR:
                 $logType = "ERROR:";
                 $message .= "...Script aborted";
                 break;
@@ -255,7 +258,7 @@ class Backup
         $entry = sprintf("%s %s %s %s" . PHP_EOL, $currentDate->format("Y-m-d H:i:s"), "-- PHPBackupScript -", $logType, $message);
         file_put_contents($path, $entry, FILE_APPEND);
 
-        if ($type == "error") {
+        if ($type === self::LOG_ERROR) {
             exit;
         }
 
