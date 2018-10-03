@@ -38,7 +38,7 @@ $backupDir = $serverRoot . "backup/";
 Create an object of Backup::class
 
 ```
-$backup = new Backup($serverRoot, $backupDir);
+$backup = new Backup();
 ```
 
 Set E-Mail for zip Archive
@@ -56,7 +56,7 @@ $backup->setDeleteBackupsAfter(20); //deletes zip archives older than 20 days
 Execute script instantly
 
 ```
-$backup->execute();
+$backup->backupFiles($serverRoot, $backupDir);
 ```
 
 ## Run it automatically
