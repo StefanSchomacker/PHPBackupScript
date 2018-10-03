@@ -4,20 +4,18 @@
 $serverRoot = "/var/www/html/";
 $backupDir = $serverRoot . "backup/";
 
-$backup = new Backup($serverRoot, $backupDir);
+$backup = new Backup();
 $backup->setMail("[YOUR EMAIL]");
 $backup->setDeleteBackupsAfter(20);
 $backup->setWeeklyReport(true);
 
-$backup->execute();
+$backup->backupFiles($serverRoot, $backupDir);
 */
 
 class Backup
 {
     private $_serverRoot; //$_SERVER['DOCUMENT_ROOT'] cant be used with cron
     private $_backupDir;
-    private $_recDirIt;
-    private $_recItIt;
 
     //default values
     private $_mail = null;
@@ -26,25 +24,20 @@ class Backup
     private $_phpTimeoutTime = 600; //default 10 minutes || max_execution_time
 
     /**
-     * Backup constructor.
+     * Starts the file backup
      * @param $serverRoot
      * @param $backupDir
-     */
-    public function __construct($serverRoot, $backupDir)
-    {
-        $this->_serverRoot = $serverRoot;
-        $this->_backupDir = $backupDir;
-        $this->_recDirIt = new RecursiveDirectoryIterator($this->_serverRoot, RecursiveDirectoryIterator::SKIP_DOTS);
-        $this->_recItIt = new RecursiveIteratorIterator($this->_recDirIt);
-    }
-
-    /**
-     * Starts the backup
      * @return bool true if backup was successful,
      * false otherwise
      */
-    public function execute()
+    public function backupFiles($serverRoot, $backupDir)
     {
+        $this->_serverRoot = $serverRoot;
+        $this->_backupDir = $backupDir;
+        $recDirIt = new RecursiveDirectoryIterator($this->_serverRoot, RecursiveDirectoryIterator::SKIP_DOTS);
+        $recItIt = new RecursiveIteratorIterator($recDirIt);
+
+
         $success = false;
 
         //avoid php timeouts
@@ -67,7 +60,7 @@ class Backup
             }
         }
 
-        $zipPath = $this->createZipArchive($this->_recItIt);
+        $zipPath = $this->createZipArchive($recItIt);
 
         if (is_null($zipPath)) {
             $success = false;
