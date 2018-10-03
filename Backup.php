@@ -215,9 +215,6 @@ class Backup
         $path .= "backup-" . strtolower($currentDate->format("F")) . ".log";
 
         switch ($type) {
-            case self::LOG_INFO:
-                $logType = "INFO:";
-                break;
             case self::LOG_DELETE:
                 $logType = "DELETE:";
                 break;
@@ -227,6 +224,10 @@ class Backup
             case self::LOG_ERROR:
                 $logType = "ERROR:";
                 $message .= "...Script aborted";
+                break;
+            case self::LOG_INFO:
+            default:
+                $logType = "INFO:";
                 break;
         }
 
