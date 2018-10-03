@@ -6,7 +6,6 @@ $backupDir = "/var/www/html/backup/";
 $backup = new Backup($backupDir);
 $backup->setMail("[YOUR EMAIL]");
 $backup->setDeleteBackupsAfter(20);
-$backup->setWeeklyReport(true);
 
 $dirPath = "/var/www/html/";
 $backup->backupDirectory($dirPath);
@@ -25,7 +24,6 @@ class Backup
     //default values
     private $_mail = null;
     private $_deleteBackupsAfter = 30; //delete old backups after X Days || -1 deactivate
-    private $_weeklyReport = false; //send email report on sunday
     private $_phpTimeoutTime = 600; //default 10 minutes || max_execution_time
 
     //logging types
@@ -79,26 +77,6 @@ class Backup
         $this->sendBackupMail($zipPath);
 
         $this->createNewLogEntry(self::LOG_CREATE, basename($zipPath));
-
-        if ($this->_weeklyReport) {
-            //check date last E-Mail
-            $currentDate = new DateTime("now");
-            $content = file($this->_backupDir . "log/" . $currentDate->format("Y") . "/"
-                . "backup-" . strtolower($currentDate->format("F")) . ".log");
-
-            $reportRequired = $this->isReportMailRequired($content);
-
-            if (!$reportRequired) {
-                //check if last E-Mail was in previous month
-                $currentDate->modify("-1 month");
-                $content = file($this->_backupDir . "log/" . $currentDate->format("Y") . "/"
-                    . "backup-" . strtolower($currentDate->format("F")) . ".log");
-            } else {
-                $this->sendReportMail();
-                $this->createNewLogEntry(self::LOG_INFO, "E-Mail Report send");
-            }
-
-        }
     }
 
     /**
@@ -296,172 +274,6 @@ class Backup
         return $deletedFiles;
     }
 
-    /**
-     * Checks if last Report Mail was in another week
-     * @param array $fileContent
-     * @return bool true if Report Mail is required,
-     * false otherwise
-     */
-    private function isReportMailRequired(array $fileContent) : bool
-    {
-        foreach (array_reverse($fileContent) as $entry) {
-
-            if (preg_match("/(INFO: E-Mail Report send)/", $entry) == 1) {
-
-                if ((new DateTime(substr($entry, 0, 10)))->format("W") != (new DateTime("now"))->format("W")) {
-                    return true;
-                }
-
-                return false;
-
-            }
-
-        }
-        return false;
-    }
-
-
-    /**
-     * Sends report email every sunday.
-     * Contains:
-     *      - Error during backup
-     *      - Created backups
-     *      - Deleted backups
-     * No changes = No Email
-     */
-    private function sendReportMail() : void
-    {
-        $generatedReport = $this->generateReportContent();
-        if ($generatedReport !== null) {
-
-            $currentDate = new DateTime("now");
-
-            $subject = "Backup Report - Week " . $currentDate->format("W");
-            $message = "<h1>Report Week " . $currentDate->format("W") . "</h1>";
-            $message .= $generatedReport;
-
-            $header = "MIME-Version: 1.0 \r\n";
-            $header .= "Content-type: text/html; charset=iso-8859-1 \r\n";
-            $header .= "X-Mailer: PHP " . phpversion();
-
-            mail($this->_mail, $subject, $message, $header);
-
-        }
-    }
-
-    /**
-     * Creates HTML formatted string for sendReportMail().
-     * Validate Log files of current week
-     * @return string contains HTML formatted report
-     */
-    private function generateReportContent() : string
-    {
-        $errorLogEntries = array();
-        $createLogEntries = array();
-        $deleteLogEntries = array();
-
-        foreach ($this->getLastWeekPath() as $path) {
-
-            $logEntries = file($path);
-            $logEntries = array_reverse($logEntries);
-
-            for ($i = 0; $i < count($logEntries); $i++) {
-
-                if (date("W", strtotime(substr($logEntries[$i], 0, 10))) != date("W")) {
-                    continue;
-                }
-
-                if (preg_match("/(INFO:)/", $logEntries[$i]) == 1) {
-                    continue;
-                } elseif (preg_match("/(DELETE:)/", $logEntries[$i]) == 1) {
-                    array_push($deleteLogEntries,
-                        substr($logEntries[$i], strpos($logEntries[$i], "DELETE:") + 8));
-                } elseif (preg_match("/(CREATE:)/", $logEntries[$i]) == 1) {
-                    array_push($createLogEntries,
-                        substr($logEntries[$i], strpos($logEntries[$i], "CREATE:") + 8));
-                } elseif (preg_match("/(ERROR:)/", $logEntries[$i]) == 1) {
-                    array_push($errorLogEntries,
-                        substr($logEntries[$i], strpos($logEntries[$i], "ERROR:") + 7) . " on " . substr($logEntries[$i], 0, 19));
-                }
-
-            }
-        }
-
-        $msg = "";
-
-        //generate string for mail
-        if (!empty($errorLogEntries)) {
-            $msg .= "<h2>Error:</h2>";
-            $msg .= $this->splitInUL($errorLogEntries);
-        }
-
-        if (!empty($createLogEntries)) {
-            $msg .= "<h2>Created:</h2>";
-            $msg .= $this->splitInUL($createLogEntries);
-        }
-
-        if (!empty($deleteLogEntries)) {
-            $msg .= "<h2>Deleted:</h2>";
-            $msg .= $this->splitInUL($deleteLogEntries);
-        }
-
-        return ($msg != "") ? $msg : null;
-
-    }
-
-    /**
-     * Generates string array with all paths of the current week
-     * @return array
-     */
-    private function getLastWeekPath() : array
-    {
-        $currentDate = new DateTime("now");
-        $previousDate = new DateTime("now");
-
-        if (((int)$currentDate->format("j") - 7) < 1) {
-            //week is also in previous month
-            $previousDate->modify("-1 month");
-        }
-
-        $arrPath = array();
-        $path = $this->_backupDir . "log/";
-
-        //check if different || only check dates - timestamp could be inaccurate
-        if ($currentDate->format("Y-m-d") != $previousDate->format("Y-m-d")) {
-            $pathYear = $previousDate->format("Y") . "/";
-            $pathFile = "backup-" . strtolower($previousDate->format("F")) . ".log";
-
-            if (file_exists($path . $pathYear . $pathFile) || true) {
-                array_push($arrPath, $path . $pathYear . $pathFile);
-            }
-        }
-
-        $pathYear = $currentDate->format("Y") . "/";
-        $pathFile = "backup-" . strtolower($currentDate->format("F")) . ".log";
-
-        if (file_exists($path . $pathYear . $pathFile) || true) {
-            array_push($arrPath, $path . $pathYear . $pathFile);
-        }
-
-        return $arrPath;
-    }
-
-    /**
-     * Puts all items of the array in an unordered list (HTML)
-     * @param array $array
-     * @return string
-     */
-    private function splitInUL(array $array) : string
-    {
-        $msg = "<ul>";
-        foreach ($array as $entry) {
-            $msg .= "<li>" . $entry . "</li>";
-        }
-        $msg .= "</ul>";
-
-        return $msg;
-    }
-
     //getter and setter
 
     /**
@@ -497,22 +309,6 @@ class Backup
     public function setDeleteBackupsAfter(int $deleteBackupsAfter) : void
     {
         $this->_deleteBackupsAfter = $deleteBackupsAfter;
-    }
-
-    /**
-     * @return boolean
-     */
-    public function getWeeklyReport() : bool
-    {
-        return $this->_weeklyReport;
-    }
-
-    /**
-     * @param boolean $weeklyReport
-     */
-    public function setWeeklyReport(bool $weeklyReport) : void
-    {
-        $this->_weeklyReport = $weeklyReport;
     }
 
     /**
