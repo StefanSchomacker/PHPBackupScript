@@ -2,12 +2,13 @@
 
 ### Overview
 * Backup of all Files
-* Select own folder for zip backups
-* Except backup folder
+* Select own directory for zip backups
+* Except backup directory
 * Send E-Mail with zip archive
 * Log-file
 * Weekly Report E-Mail
 * Delete old backups after X days
+* MySQL database backup
 
 
 ## Installation
@@ -26,19 +27,18 @@ git clone https://github.com/StefanSchomacker/PHPBackupScript
 ## Getting Started
 **Sample Setup**
 
-Create a path for the document root and your backup folder.
+Create a string with the path of your backup directory.
 The last `/` is important!
 
 Example:
 ```
-$serverRoot = "/var/www/html/";
-$backupDir = $serverRoot . "backup/";
+$backupDir = "/var/www/html/backup/";
 ```
 
-Create an object of backup class
+Create an object of Backup::class
 
 ```
-$backup = new backup($serverRoot, $backupDir);
+$backup = new Backup($backupDir);
 ```
 
 Set E-Mail for zip Archive
@@ -50,13 +50,20 @@ $backup->setMail("[YOUR EMAIL]");
 Configure some Settings
 
 ```
-$backup->setDeleteBackupsAfter(20); //deletes zip archives older than 20 days
+$backup->setDeleteBackupsAfter(20); //deletes archives older than 20 days
 ```
 
 Execute script instantly
 
 ```
-$backup->execute();
+$dirPath = "/var/www/html/";
+$backup->backupDirectory($dirPath);
+
+$databaseHost = "localhost";
+$databaseUser = "user";
+$databasePassword = "password";
+$databaseName = "databaseName";
+$backup->backupDatabase($databaseHost, $databaseUser, $databasePassword, $databaseName);
 ```
 
 ## Run it automatically
@@ -91,19 +98,13 @@ If you need more time, feel free to change the time (in seconds).
 $backup->setPhpTimeoutTime(X);
 ```
 
-**Backup folder**
+**Backup directory**
 
-The folder of your backups is excluded in every zip archive.
+The directory of your backups is excluded in every zip archive.
 
-**ServerRoot**
+**Archives**
 
-The constructor needs the path of the document root.
-Unfortunately, you can't use `$_SERVER['DOCUMENT_ROOT']`.
-If you run this script via cron, the `$_SERVER` is not available.
-
-**Zip Archive**
-
-The default name of a zip backup is `backup_Y-m-d_H-i-s.zip`.
+The default name of a archive is `filename_Y-m-d_H-i-s`.
 
 **Log structure**
 
@@ -139,13 +140,13 @@ Feel free to create a new
 
 ##### v1.0.0
 * zip archive of all files
-* except backup folder
+* except backup directory
 * send Mail with backup
 * create log files
 * delete old backups
 
 ### IDEAS and TODO
-- [ ] MySQL database backup
+- [x] MySQL database backup
 - [ ] user decide between backup files and db
 - [ ] separate mail of different backups
 - [ ] validate user input
