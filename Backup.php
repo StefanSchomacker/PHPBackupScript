@@ -84,10 +84,10 @@ class Backup
     /**
      * Creates zip archive of the given path
      * @param string $directoryPath
-     * @return string path of the created backup,
+     * @return string|null path of the created backup,
      * null if backup failed
      */
-    private function createZipArchive(string $directoryPath) : string
+    private function createZipArchive(string $directoryPath) : ?string
     {
         $recDirIt = new RecursiveDirectoryIterator($directoryPath, RecursiveDirectoryIterator::SKIP_DOTS);
         $recItIt = new RecursiveIteratorIterator($recDirIt);
