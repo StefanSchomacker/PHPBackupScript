@@ -125,32 +125,6 @@ Feel free to create a new
 [Issue](https://github.com/StefanSchomacker/PHPBackupScript/issues) or a 
 [Pull request](https://github.com/StefanSchomacker/PHPBackupScript/pulls)
 
-
-## Changelog
-
-##### v1.2.0
-* add mysql database backup functionality
-* rename class name and execution methods
-* separate backup output directory and actual backup directory
-* remove report mail
-* introduce logging types constants
-* add php7 variable type declaration
-* validate user input
-
-##### v1.1.0
-* added weekly report mail
-* log is now activated by default
-* log entry style changed
-* set max_execution_time to avoid php timeouts
-* changed date to DateTime
-
-##### v1.0.0
-* zip archive of all files
-* except backup directory
-* send Mail with backup
-* create log files
-* delete old backups
-
 ### IDEAS and TODO
 - [x] MySQL database backup
 - [x] user decide between backup files and db
