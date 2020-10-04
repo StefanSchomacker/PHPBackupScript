@@ -1,13 +1,39 @@
 <?php
 
-/*
+$options = getopt("",['sourcePath:','destinationPath:','mailTo:']);
+
+if(empty($options)) {
+    $email = '[YOUR EMAIL]';
+    $dirPath = '/var/www/html/';
+    $backupPath = '/var/www/html/backup/';
+} else {
+    if(!isset($options['sourcePath']) || is_array($options['sourcePath']))
+        showUsage('sourcePath');
+        $dirPath = $options['sourcePath'];
+
+    if(!isset($options['destinationPath']) || is_array($options['destinationPath']))
+        showUsage('destinationPath');
+        $backupPath = $options['destinationPath'];
+
+    if(!isset($options['mailTo']) || is_array($options['mailTo']))
+        showUsage('mailTo');
+        $email = $options['mailTo'];
+}
+
+function showUsage($option = '') {
+    echo 'Wrong use of option ' .$option.PHP_EOL;
+    echo 'Usage: '. basename(__FILE__). ' [options]' .PHP_EOL;
+    echo '  --sourcePath          Which directory should be backed up?'.PHP_EOL;
+    echo '  --destinationPath     Where should the backup be stored?'.PHP_EOL;
+    echo '  --mailTo              Which mail should the backup be sent to?'.PHP_EOL;
+    exit;
+}
+
 $backupPath = "/var/www/html/backup/";
 
 $backup = new Backup($backupPath);
-$backup->setMail("[YOUR EMAIL]");
+$backup->setMail($email);
 $backup->setDeleteBackupsAfter(20);
-
-$dirPath = "/var/www/html/";
 $backup->backupDirectory($dirPath);
 
 $databaseHost = "localhost";
@@ -15,7 +41,7 @@ $databaseUser = "user";
 $databasePassword = "password";
 $databaseName = "databaseName";
 $backup->backupDatabase($databaseHost, $databaseUser, $databasePassword, $databaseName);
-*/
+
 
 class Backup
 {
