@@ -1,9 +1,8 @@
 <?php
 
-$options = getopt("",['sourcePath:','destinationPath:','mailTo:']);
+$options = getopt("",['sourcePath:','destinationPath:']);
 
 if(empty($options)) {
-    $email = '[YOUR EMAIL]';
     $dirPath = '/var/www/html/';
     $backupPath = '/var/www/html/backup/';
 } else {
@@ -14,10 +13,6 @@ if(empty($options)) {
     if(!isset($options['destinationPath']) || is_array($options['destinationPath']))
         showUsage('destinationPath');
         $backupPath = $options['destinationPath'];
-
-    if(!isset($options['mailTo']) || is_array($options['mailTo']))
-        showUsage('mailTo');
-        $email = $options['mailTo'];
 }
 
 function showUsage($option = '') {
@@ -25,14 +20,12 @@ function showUsage($option = '') {
     echo 'Usage: '. basename(__FILE__). ' [options]' .PHP_EOL;
     echo '  --sourcePath          Which directory should be backed up?'.PHP_EOL;
     echo '  --destinationPath     Where should the backup be stored?'.PHP_EOL;
-    echo '  --mailTo              Which mail should the backup be sent to?'.PHP_EOL;
     exit;
 }
 
 $backupPath = "/var/www/html/backup/";
 
 $backup = new Backup($backupPath);
-$backup->setMail($email);
 $backup->setDeleteBackupsAfter(20);
 $backup->backupDirectory($dirPath);
 
@@ -48,7 +41,6 @@ class Backup
     private $_backupDir;
 
     //default values
-    private $_mail = null;
     private $_deleteBackupsAfter = 30; //delete old backups after X Days || -1 deactivate
     private $_phpTimeoutTime = 600; //default 10 minutes || max_execution_time
 
@@ -101,8 +93,6 @@ class Backup
             $this->createNewLogEntry(self::LOG_ERROR, "Zip archive cannot be created");
             return;
         }
-
-        $this->sendBackupMail($zipPath);
 
         $this->createNewLogEntry(self::LOG_CREATE, basename($zipPath));
     }
@@ -168,45 +158,8 @@ class Backup
             ' --password=\'' . $databasePassword . '\' ' . $databaseName . ' | gzip > ' . $dumpPath, $output, $success);
         if (!$success) {
             $this->createNewLogEntry(self::LOG_CREATE, basename($dumpPath));
-            $this->sendBackupMail($dumpPath);
         } else {
             $this->createNewLogEntry(self::LOG_ERROR, "Database dump cannot be created");
-        }
-    }
-
-    /**
-     * Sends a mail with attachment (backup zip)
-     * @param string $attachmentPath
-     */
-    private function sendBackupMail(string $attachmentPath) : void
-    {
-        if($this->_mail === null){
-            return;
-        }
-
-        $subject = "Backup || " . basename($attachmentPath);
-
-        $content = chunk_split(base64_encode(file_get_contents($attachmentPath)));
-        $part = md5(time());
-
-        $header = "From: " . $this->_mail . "\r\n";
-        $header .= "MIME-Version: 1.0\r\n";
-        $header .= "Content-Type: multipart/mixed; boundary=\"" . $part . "\"\r\n\r\n";
-
-        $message = "--" . $part . "\r\n";
-        $message .= "Content-type:text/plain; charset=iso-8859-1\r\n";
-        $message .= "Content-Transfer-Encoding: 7bit\r\n\r\n";
-
-        $message .= "--" . $part . "\r\n";
-        $message .= "Content-Type: application/octet-stream; name=\"" . basename($attachmentPath) . "\"\r\n";
-        $message .= "Content-Transfer-Encoding: base64\r\n";
-        $message .= "Content-Disposition: attachment; filename=\"" . basename($attachmentPath) . "\"\r\n\r\n";
-        $message .= $content . "\r\n\r\n";
-        $message .= "--" . $part . "--";
-
-        $success = mail($this->_mail, $subject, $message, $header);
-        if (!$success) {
-            $this->createNewLogEntry(self::LOG_ERROR, "E-Mail cannot be sent");
         }
     }
 
@@ -318,25 +271,6 @@ class Backup
     }
 
     //getter and setter
-
-    /**
-     * @return string of email,
-     * null if unset
-     */
-    public function getMail() : string
-    {
-        return $this->_mail;
-    }
-
-    /**
-     * Backup zip archive will be sent to this email
-     * @param string $email ,
-     * null if unset
-     */
-    public function setMail(string $email)
-    {
-        $this->_mail = $email;
-    }
 
     /**
      * @return int in days

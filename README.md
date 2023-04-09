@@ -4,7 +4,6 @@
 * Backup of all Files
 * Select own directory for zip backups
 * Except backup directory
-* Send E-Mail with zip archive
 * Log-file
 * Delete old backups after X days
 * MySQL database backup
@@ -37,12 +36,6 @@ Create an object of Backup::class
 
 ```
 $backup = new Backup($backupPath);
-```
-
-Set E-Mail for zip Archive
-
-```
-$backup->setMail("[YOUR EMAIL]");
 ```
 
 Configure some Settings
@@ -79,7 +72,6 @@ The example creates a backup every day at 1am:
 ## Default values
 variable | default value | description
 ------------ | ------------- | -------------
-$_mail | null | zip will be send to this mail. `null` disabled
 $_deleteBackupsAfter | 30 | old zip backup will be deleted. `-1` disabled
 $_phpTimeoutTime | 600 | max_execution_time in seconds - to avoid php timeouts
 
@@ -124,14 +116,6 @@ Check the log files if archive is broken.
 Feel free to create a new
 [Issue](https://github.com/StefanSchomacker/PHPBackupScript/issues) or a 
 [Pull request](https://github.com/StefanSchomacker/PHPBackupScript/pulls)
-
-### IDEAS and TODO
-- [x] MySQL database backup
-- [x] user decide between backup files and db
-- [x] separate mail of different backups
-- [x] validate user input
-- [x] set max_execution_time by function
-- [ ] backup with runwhen
 
 ### License
 
