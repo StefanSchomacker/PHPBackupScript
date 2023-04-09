@@ -87,7 +87,7 @@ class Backup
         $recItIt = new RecursiveIteratorIterator($recDirIt);
 
         $zip = new ZipArchive();
-        $zipPath = $this->_backupDir . "backup_" . (new DateTime("now"))->format("Y-m-d_H-i-s") . ".zip";
+        $zipPath = sprintf('%sbackup_%s.zip', $this->_backupDir, (new DateTime('now'))->format('Y-m-d_H-i-s'));
         if ($zip->open($zipPath, ZipArchive::CREATE) !== TRUE) {
             $this->_log->error('open zip file failed');
             exit(1);
@@ -133,11 +133,13 @@ class Backup
     {
         $this->_log->info('backup database started');
 
-        $dumpPath = $this->_backupDir . "sqldump_" . (new DateTime("now"))->format("Y-m-d_H-i-s") . ".sql.gz";
+        $dumpPath = sprintf('%ssqldump_%s.sql.gz', $this->_backupDir, (new DateTime('now'))->format('Y-m-d_H-i-s'));
         $output = [];
-        exec('mysqldump --host=' . $databaseHost . ' --user=' . $databaseUser .
-            ' --password=\'' . $databasePassword . '\' ' . $databaseName . ' | gzip > ' . $dumpPath, $output, $success);
-        if (!$success) {
+        $command = sprintf('mysqldump --host=\'%s\' --user=\'%s\' --password=\'%s\' %s | gzip > %s',
+            $databaseHost, $databaseUser, $databasePassword, $databaseName, $dumpPath);
+        exec($command, $output, $success);
+        $this->_log->debug(implode(PHP_EOL, $output));
+        if ($success === 0) {
             $this->_log->info('database dump created ' . basename($dumpPath));
         } else {
             $this->_log->error('database dump cannot be created');
@@ -163,9 +165,9 @@ class Backup
                     date_diff($dateFileCreated, $dateToday)->d >= $this->_deleteBackupsAfter
                 ) {
                     if (unlink($file)) {
-                        $this->_log->info('delete old backup ' . $file);
+                        $this->_log->info(sprintf('delete old backup %s', $file));
                     } else {
-                        $this->_log->warn('deleting backup failed for file ' . $file);
+                        $this->_log->warn(sprintf('deleting backup failed for file %s', $file));
                     }
                 }
             }
@@ -277,7 +279,7 @@ class Log
     private function log(string $logLevel, string $message): void
     {
         $file = $this->_logPath . '/backup.log';
-        $entry = sprintf("%s - %s - %s - %s" . PHP_EOL, (new DateTime('now'))->format("Y-m-d H:i:s"), 'PHPBackupScript', $logLevel, $message);
+        $entry = sprintf('%s - %s - %s - %s' . PHP_EOL, (new DateTime('now'))->format('Y-m-d H:i:s'), 'PHPBackupScript', $logLevel, $message);
         echo $entry;
         file_put_contents($file, $entry, FILE_APPEND);
     }
