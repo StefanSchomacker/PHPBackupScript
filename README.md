@@ -1,7 +1,11 @@
 # PHPBackupScript
 
-### Overview
-* Backup of all Files
+## Motivation
+This script is meant to be used on platforms, where only a limited toolset is provided (e.g. no bash scripts are allowed).
+The concept is intentionally kept simple: the file `Backup.php` contains the complete logic to back up files and mysql databases.
+
+## Overview
+* Backup of all files
 * Select own directory for zip backups
 * Except backup directory
 * Log-file
