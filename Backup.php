@@ -278,6 +278,9 @@ class Log
      */
     private function log(string $logLevel, string $message): void
     {
+        if (empty(trim($message))) {
+            return;
+        }
         $file = $this->_logPath . '/backup.log';
         $entry = sprintf('%s - %s - %s - %s' . PHP_EOL, (new DateTime('now'))->format('Y-m-d H:i:s'), 'PHPBackupScript', $logLevel, $message);
         echo $entry;
