@@ -1,9 +1,8 @@
 <?php
 
-$options = getopt("",['sourcePath:','destinationPath:','mailTo:']);
+$options = getopt("",['sourcePath:','destinationPath:']);
 
 if(empty($options)) {
-    $email = '[YOUR EMAIL]';
     $dirPath = '/var/www/html/';
     $backupPath = '/var/www/html/backup/';
 } else {
@@ -14,10 +13,6 @@ if(empty($options)) {
     if(!isset($options['destinationPath']) || is_array($options['destinationPath']))
         showUsage('destinationPath');
         $backupPath = $options['destinationPath'];
-
-    if(!isset($options['mailTo']) || is_array($options['mailTo']))
-        showUsage('mailTo');
-        $email = $options['mailTo'];
 }
 
 function showUsage($option = '') {
@@ -25,14 +20,12 @@ function showUsage($option = '') {
     echo 'Usage: '. basename(__FILE__). ' [options]' .PHP_EOL;
     echo '  --sourcePath          Which directory should be backed up?'.PHP_EOL;
     echo '  --destinationPath     Where should the backup be stored?'.PHP_EOL;
-    echo '  --mailTo              Which mail should the backup be sent to?'.PHP_EOL;
     exit;
 }
 
 $backupPath = "/var/www/html/backup/";
 
 $backup = new Backup($backupPath);
-$backup->setMail($email);
 $backup->setDeleteBackupsAfter(20);
 $backup->backupDirectory($dirPath);
 
@@ -47,16 +40,12 @@ class Backup
 {
     private $_backupDir;
 
+    private $_log;
+
     //default values
-    private $_mail = null;
     private $_deleteBackupsAfter = 30; //delete old backups after X Days || -1 deactivate
     private $_phpTimeoutTime = 600; //default 10 minutes || max_execution_time
 
-    //logging types
-    const LOG_INFO = 0;
-    const LOG_DELETE = 1;
-    const LOG_CREATE = 2;
-    const LOG_ERROR = 3;
 
     /**
      * Backup constructor.
@@ -65,6 +54,7 @@ class Backup
     public function __construct(string $backupPath)
     {
         $this->_backupDir = $this->validateUserInputFilePath($backupPath);
+        $this->_log = new Log($this->_backupDir . 'log');
     }
 
     /**
@@ -78,42 +68,20 @@ class Backup
         //avoid php timeouts
         ini_set("max_execution_time", $this->_phpTimeoutTime);
 
-        $this->createNewLogEntry(self::LOG_INFO, "Backup files started");
+        $this->_log->info('backup files started');
 
         if ($this->_deleteBackupsAfter != -1) {
-
-            $deletedFiles = $this->deleteOldBackup();
-
-            if (!empty($deletedFiles)) {
-
-                foreach ($deletedFiles as $file) {
-                    $this->createNewLogEntry(self::LOG_DELETE, $file);
-                }
-
-            } else {
-                $this->createNewLogEntry(self::LOG_INFO, "No old backup deleted");
-            }
+            $this->deleteOldBackup();
         }
 
-        $zipPath = $this->createZipArchive($directoryPath);
-
-        if ($zipPath === null) {
-            $this->createNewLogEntry(self::LOG_ERROR, "Zip archive cannot be created");
-            return;
-        }
-
-        $this->sendBackupMail($zipPath);
-
-        $this->createNewLogEntry(self::LOG_CREATE, basename($zipPath));
+        $this->createZipArchive($directoryPath);
     }
 
     /**
      * Creates zip archive of the given path
      * @param string $directoryPath
-     * @return string|null path of the created backup,
-     * null if backup failed
      */
-    private function createZipArchive(string $directoryPath) : ?string
+    private function createZipArchive(string $directoryPath) : void
     {
         $recDirIt = new RecursiveDirectoryIterator($directoryPath, RecursiveDirectoryIterator::SKIP_DOTS);
         $recItIt = new RecursiveIteratorIterator($recDirIt);
@@ -121,34 +89,37 @@ class Backup
         $zip = new ZipArchive();
         $zipPath = $this->_backupDir . "backup_" . (new DateTime("now"))->format("Y-m-d_H-i-s") . ".zip";
         if ($zip->open($zipPath, ZipArchive::CREATE) !== TRUE) {
-            exit("open zip file failed");
+            $this->_log->error('open zip file failed');
+            exit(1);
         }
 
+        $includedFiles = 0;
         foreach ($recItIt as $singleItem) {
-
             //exclude backup folder
             if (is_int(strpos($singleItem, $this->_backupDir))) {
                 continue;
             }
 
             if (is_dir($singleItem)) {
-
                 $zip->addEmptyDir($singleItem);
-
                 $this->createZipArchive($singleItem);
-
             } elseif (is_file($singleItem)) {
-
                 $zip->addFile($singleItem, str_replace($directoryPath, '', $singleItem));
-
+                $includedFiles++;
             }
         }
 
         if ($zip->close()) {
-            return $zipPath;
+            if ($includedFiles > 0) {
+                $this->_log->info(sprintf('zip archive created successfully with %d files', $includedFiles));
+            } else {
+                $this->_log->info('no zip archive created because of empty directory');
+            }
+            return;
         }
 
-        return null;
+        $this->_log->error('zip archive creation failed');
+        exit(1);
     }
 
     /**
@@ -160,131 +131,29 @@ class Backup
      */
     public function backupDatabase(string $databaseHost, string $databaseUser, string $databasePassword, string $databaseName) : void
     {
-        $this->createNewLogEntry(self::LOG_INFO, "Backup database started");
+        $this->_log->info('backup database started');
 
         $dumpPath = $this->_backupDir . "sqldump_" . (new DateTime("now"))->format("Y-m-d_H-i-s") . ".sql.gz";
         $output = [];
         exec('mysqldump --host=' . $databaseHost . ' --user=' . $databaseUser .
             ' --password=\'' . $databasePassword . '\' ' . $databaseName . ' | gzip > ' . $dumpPath, $output, $success);
         if (!$success) {
-            $this->createNewLogEntry(self::LOG_CREATE, basename($dumpPath));
-            $this->sendBackupMail($dumpPath);
+            $this->_log->info('database dump created ' . basename($dumpPath));
         } else {
-            $this->createNewLogEntry(self::LOG_ERROR, "Database dump cannot be created");
+            $this->_log->error('database dump cannot be created');
+            exit(1);
         }
-    }
-
-    /**
-     * Sends a mail with attachment (backup zip)
-     * @param string $attachmentPath
-     */
-    private function sendBackupMail(string $attachmentPath) : void
-    {
-        if($this->_mail === null){
-            return;
-        }
-
-        $subject = "Backup || " . basename($attachmentPath);
-
-        $content = chunk_split(base64_encode(file_get_contents($attachmentPath)));
-        $part = md5(time());
-
-        $header = "From: " . $this->_mail . "\r\n";
-        $header .= "MIME-Version: 1.0\r\n";
-        $header .= "Content-Type: multipart/mixed; boundary=\"" . $part . "\"\r\n\r\n";
-
-        $message = "--" . $part . "\r\n";
-        $message .= "Content-type:text/plain; charset=iso-8859-1\r\n";
-        $message .= "Content-Transfer-Encoding: 7bit\r\n\r\n";
-
-        $message .= "--" . $part . "\r\n";
-        $message .= "Content-Type: application/octet-stream; name=\"" . basename($attachmentPath) . "\"\r\n";
-        $message .= "Content-Transfer-Encoding: base64\r\n";
-        $message .= "Content-Disposition: attachment; filename=\"" . basename($attachmentPath) . "\"\r\n\r\n";
-        $message .= $content . "\r\n\r\n";
-        $message .= "--" . $part . "--";
-
-        $success = mail($this->_mail, $subject, $message, $header);
-        if (!$success) {
-            $this->createNewLogEntry(self::LOG_ERROR, "E-Mail cannot be sent");
-        }
-    }
-
-    /**
-     * Creates new log entry
-     * @param int $type
-     * @param string $message
-     */
-    private function createNewLogEntry(int $type, string $message) : void
-    {
-        //folder structure
-        //2017
-        //--backup-january.log
-        //--backup-february.log
-        //  ...
-
-        $currentDate = new DateTime("now");
-
-        //log folder
-        $path = $this->_backupDir . "log/";
-        if (!file_exists($path)) {
-            mkdir($path, 0777, true);
-        }
-
-        //year folder
-        $path .= $currentDate->format("Y") . "/";
-        if (!file_exists($path)) {
-            mkdir($path, 0777, true);
-        }
-
-        //log file
-        $path .= "backup-" . strtolower($currentDate->format("F")) . ".log";
-
-        switch ($type) {
-            case self::LOG_DELETE:
-                $logType = "DELETE:";
-                break;
-            case self::LOG_CREATE:
-                $logType = "CREATE:";
-                break;
-            case self::LOG_ERROR:
-                $logType = "ERROR:";
-                $message .= "...Script aborted";
-                break;
-            case self::LOG_INFO:
-            default:
-                $logType = "INFO:";
-                break;
-        }
-
-        $entry = sprintf("%s %s %s %s" . PHP_EOL, $currentDate->format("Y-m-d H:i:s"), "-- PHPBackupScript -", $logType, $message);
-        file_put_contents($path, $entry, FILE_APPEND);
-
-        if ($type === self::LOG_ERROR) {
-            exit;
-        }
-
     }
 
     /**
      * Deletes zip archives older than $this->_deleteBackupsAfter days
-     * log folder is excluded
-     * @return array of the deleted filename
      */
-    private function deleteOldBackup() : array
+    private function deleteOldBackup() : void
     {
-        $deletedFiles = array();
-
         $recDirIt = new RecursiveDirectoryIterator($this->_backupDir, RecursiveDirectoryIterator::SKIP_DOTS);
         $recItIt = new RecursiveIteratorIterator($recDirIt);
 
         foreach ($recItIt as $file) {
-
-            //exclude log folder
-            if (is_int(strpos($file, $this->_backupDir . "log/"))) {
-                continue;
-            }
-
             if (is_file($file)) {
                 $dateFileCreated = date_create();
                 $dateToday = date_create();
@@ -294,13 +163,13 @@ class Backup
                     date_diff($dateFileCreated, $dateToday)->d >= $this->_deleteBackupsAfter
                 ) {
                     if (unlink($file)) {
-                        array_push($deletedFiles, basename($file));
+                        $this->_log->info('delete old backup ' . $file);
+                    } else {
+                        $this->_log->warn('deleting backup failed for file ' . $file);
                     }
                 }
             }
         }
-
-        return $deletedFiles;
     }
 
     /**
@@ -318,25 +187,6 @@ class Backup
     }
 
     //getter and setter
-
-    /**
-     * @return string of email,
-     * null if unset
-     */
-    public function getMail() : string
-    {
-        return $this->_mail;
-    }
-
-    /**
-     * Backup zip archive will be sent to this email
-     * @param string $email ,
-     * null if unset
-     */
-    public function setMail(string $email)
-    {
-        $this->_mail = $email;
-    }
 
     /**
      * @return int in days
@@ -369,5 +219,66 @@ class Backup
     {
         $this->_phpTimeoutTime = $phpTimeoutTime;
     }
+}
 
+class Log
+{
+    private $_logPath;
+
+    public function __construct(string $logPath)
+    {
+        $this->_logPath = $logPath;
+        if (!file_exists($this->_logPath)) {
+            mkdir($this->_logPath, 0440, true);
+        }
+    }
+
+    /**
+     * Creates new debug log entry.
+     * @param string $message
+     */
+    public function debug($message): void
+    {
+        $this->log('DEBUG', $message);
+    }
+
+    /**
+     * Creates new info log entry.
+     * @param string $message
+     */
+    public function info($message): void
+    {
+        $this->log('INFO', $message);
+    }
+
+    /**
+     * Creates new warn log entry.
+     * @param string $message
+     */
+    public function warn($message): void
+    {
+        $this->log('WARN', $message);
+    }
+
+    /**
+     * Creates new error log entry.
+     * @param string $message
+     */
+    public function error($message): void
+    {
+        $this->log('ERROR', $message);
+    }
+
+    /**
+     * Creates new log entry.
+     * @param string $logLevel
+     * @param string $message
+     */
+    private function log(string $logLevel, string $message): void
+    {
+        $file = $this->_logPath . '/backup.log';
+        $entry = sprintf("%s - %s - %s - %s" . PHP_EOL, (new DateTime('now'))->format("Y-m-d H:i:s"), 'PHPBackupScript', $logLevel, $message);
+        echo $entry;
+        file_put_contents($file, $entry, FILE_APPEND);
+    }
 }
