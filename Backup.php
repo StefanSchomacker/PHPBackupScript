@@ -163,9 +163,9 @@ class Backup
                     date_diff($dateFileCreated, $dateToday)->d >= $this->_deleteBackupsAfter
                 ) {
                     if (unlink($file)) {
-                        $this->_log->info('delete old backup ' . basename($file));
+                        $this->_log->info('delete old backup ' . $file);
                     } else {
-                        $this->_log->warn('deleting backup failed for file ' . basename($file));
+                        $this->_log->warn('deleting backup failed for file ' . $file);
                     }
                 }
             }
