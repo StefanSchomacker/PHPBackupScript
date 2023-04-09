@@ -95,18 +95,10 @@ The directory of your backups is excluded in every zip archive.
 
 The default name of a archive is `filename_Y-m-d_H-i-s`.
 
-**Log structure**
+**Logs**
 
-```
-year1
-...backup-january.log
-...backup-february.log
-   ...
-year2
-...backup-january.log
-...backup-february.log
-   ...
-```
+The logfiles are created in the subdirectory `log`.
+Please set up an external log rotation.
 
 ## Important
 Please check your zip backups regularly.
