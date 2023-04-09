@@ -14,7 +14,9 @@ The concept is intentionally kept simple: the file `Backup.php` contains the com
 
 
 ## Installation
-It's very simple to include this script.
+It is only one PHP File to include.
+Please make sure that you have the following extension installed on your system:
+- https://www.php.net/manual/en/book.zip.php (e.g. install with `apt install php-zip` or `docker-php-ext-install zip`)
 
 **Download Zip**
 
