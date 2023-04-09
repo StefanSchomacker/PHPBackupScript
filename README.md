@@ -66,13 +66,11 @@ $backup->backupDatabase($databaseHost, $databaseUser, $databasePassword, $databa
 ## Run it automatically
 **Cron**
 
-* The PHP file needs `chmd a+x`
-* Uncomment first lines of my script and modify
-
+Create a new cron entry with `crontab -e`.
 The example creates a backup every day at 1am:
 
 ```
-0 1 * * * [PATH TO BACKUP.PHP] // e.g. ~/html/backup.php
+0 1 * * * /usr/bin/php [PATH TO Backup.php]
 ```
 
 ## Default values
@@ -84,7 +82,7 @@ $_phpTimeoutTime | 600 | max_execution_time in seconds - to avoid php timeouts
 ## Details
 **Timeout**
 
-A PHP script will be canceled after 30 seconds by the server.
+A PHP script will be canceled by default after 30 seconds by the server.
 The backup could take more time.
 To avoid the timeout, I set the `max_execution_time` to 10 minutes. 
 If you need more time, feel free to change the time (in seconds).
@@ -99,7 +97,7 @@ The directory of your backups is excluded in every zip archive.
 
 **Archives**
 
-The default name of a archive is `filename_Y-m-d_H-i-s`.
+The default name of an archive is `backup_Y-m-d_H-i-s`.
 
 **Logs**
 
